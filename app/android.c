@@ -198,3 +198,44 @@ int32_t getKeyRune(JNIEnv* env, AInputEvent* e) {
 		AKeyEvent_getMetaState(e)
 	);
 }
+
+const char* getFilesDir(void* envP, void *appP) {
+	JNIEnv* env = (JNIEnv*)envP;
+	if (env == NULL) {
+		return "env NULL";
+	}
+	jobject applicationContext = (jobject)appP;
+	if (applicationContext == NULL) {
+		return "applicationContext NULL";
+	}
+
+	jclass contextClass = (*env)->GetObjectClass(env, applicationContext);
+	if (contextClass == NULL) {
+		return "jclass NULL";
+	}
+	jmethodID getFilesDirFunc = find_method(env, contextClass, "getFilesDir", "()Ljava/io/File;");
+	if (getFilesDirFunc == NULL) {
+		return "jmethodID NULL";
+	}
+
+	jobject filesDir = (jstring)(*env)->CallObjectMethod(env, applicationContext, getFilesDirFunc, NULL);
+	if (filesDir == NULL) {
+		return "filesDir NULL";
+	}
+
+	jclass fileClass = (*env)->GetObjectClass(env, filesDir);
+	if (fileClass == NULL) {
+		return "fileClass NULL";
+	}
+	jmethodID getAbsolutePathFunc = find_method(env, fileClass, "getAbsolutePath", "()Ljava/lang/String;");
+	if (getAbsolutePathFunc == NULL) {
+		return "getAbsolutePathFunc NULL";
+	}
+
+	jstring absolutePath = (jstring)(*env)->CallObjectMethod(env, filesDir, getAbsolutePathFunc, NULL);
+	if (absolutePath == NULL) {
+		return "filesDir NULL";
+	}
+
+	return (*env)->GetStringUTFChars(env, absolutePath, NULL);
+}
