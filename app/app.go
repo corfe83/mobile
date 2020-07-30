@@ -14,8 +14,6 @@ import (
 	_ "golang.org/x/mobile/internal/mobileinit"
 )
 
-var AndroidFilesDir string
-
 // Main is called by the main.main function to run the mobile application.
 //
 // It calls f on the App, in a separate goroutine, as some OS-specific

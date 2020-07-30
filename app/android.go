@@ -43,7 +43,6 @@ extern EGLSurface surface;
 char* createEGLSurface(ANativeWindow* window);
 char* destroyEGLSurface();
 int32_t getKeyRune(JNIEnv* env, AInputEvent* e);
-const char* getFilesDir(void* envP, void *appP);
 */
 import "C"
 import (
@@ -285,8 +284,6 @@ var mainUserFn func(App)
 
 func mainUI(vm, jniEnv, ctx uintptr) error {
 	workAvailable := theApp.worker.WorkAvailable()
-
-	AndroidFilesDir = C.GoString(C.getFilesDir(unsafe.Pointer(jniEnv), unsafe.Pointer(ctx)))
 
 	donec := make(chan struct{})
 	go func() {
