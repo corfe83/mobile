@@ -198,3 +198,99 @@ int32_t getKeyRune(JNIEnv* env, AInputEvent* e) {
 		AKeyEvent_getMetaState(e)
 	);
 }
+
+jobject clipboardManager;
+unsigned char clipboardFailed = 0;
+
+unsigned char clipboardHealthy() {
+	return clipboardFailed == 0 ? 1 : 0;
+}
+
+const char * getClipboardString() {
+	return "";
+}
+
+void setupClipboardManager(ANativeActivity *activity) {
+	JNIEnv* env = activity->env;
+
+	// If we already failed, or already have it, no need to do anything here
+	if (clipboardManager != NULL || clipboardFailed) {
+		return;
+	}
+
+	jobject context = activity->clazz;
+
+	jclass contextClass = (*env)->GetObjectClass(env, context);
+	if (contextClass == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		return;
+	}
+
+	// Find context
+	jmethodID getApplicationContextFunc = NULL;
+	while (getApplicationContextFunc == NULL) {
+		getApplicationContextFunc = find_method(env, contextClass, "getApplicationContext", "()Landroid/content/Context;");
+		if (getApplicationContextFunc != NULL) {
+			break;
+		}
+
+		contextClass = (*env)->GetSuperclass(env, contextClass);
+		if (contextClass == NULL) {
+			(*env)->ExceptionClear(env);
+			clipboardFailed = 1;
+			return;
+		}
+	}
+
+	jobject applicationContext = (*env)->CallObjectMethod(env, context, getApplicationContextFunc);
+	if (applicationContext == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		return;
+	}
+
+	contextClass = (*env)->GetObjectClass(env, applicationContext);
+	if (contextClass == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		return;
+	}
+
+	jclass generalContextClass = (*env)->FindClass(env, "android/content/Context");
+	if (context == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		return;
+	}
+
+	jfieldID clipboardServiceField = (*env)->GetStaticFieldID(env, generalContextClass, "CLIPBOARD_SERVICE", "Ljava/lang/String;");
+	if (clipboardServiceField == 0) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		return;
+	}
+
+	jstring clipboardServiceName = (jstring)(*env)->GetStaticObjectField(env, generalContextClass, clipboardServiceField);
+	if (clipboardServiceName == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		return;
+	}
+
+	jmethodID getSystemServiceFunc = find_method(env, contextClass, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+	if (getSystemServiceFunc == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		return;
+	}
+
+	clipboardManager = (*env)->CallObjectMethod(env, applicationContext, getSystemServiceFunc, clipboardServiceName);
+	if (clipboardManager == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		return;
+	}
+
+	(*env)->NewGlobalRef(env, clipboardManager);
+}

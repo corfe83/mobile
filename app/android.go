@@ -41,6 +41,7 @@ EGLSurface surface;
 char* createEGLSurface(ANativeWindow* window);
 char* destroyEGLSurface();
 int32_t getKeyRune(JNIEnv* env, AInputEvent* e);
+void setupClipboardManager(ANativeActivity *activity);
 */
 import "C"
 import (
@@ -103,6 +104,7 @@ func callMain(mainPC uintptr) {
 
 //export onStart
 func onStart(activity *C.ANativeActivity) {
+	C.setupClipboardManager(activity)
 }
 
 //export onResume
@@ -280,8 +282,14 @@ func main(f func(App)) {
 
 var mainUserFn func(App)
 
-func mainUI(vm, jniEnv, ctx uintptr) error {
+var ClippyResult string
+
+var jni, context unsafe.Pointer
+
+func mainUI(vm uintptr, jniEnv, ctx uintptr) error {
 	workAvailable := theApp.worker.WorkAvailable()
+
+	jni, context = unsafe.Pointer(jniEnv), unsafe.Pointer(ctx)
 
 	donec := make(chan struct{})
 	go func() {
