@@ -295,7 +295,7 @@ func GetClipboardString() (string, error) {
 	var err error
 	errorString := C.GoString(C.getLastClipboardError())
 	if errorString != "" {
-		err = errors.New("errorString")
+		err = errors.New(errorString)
 	}
 
 	return result, err
@@ -307,7 +307,7 @@ func SetClipboardString(input string) (error) {
 	var err error
 	errorString := C.GoString(C.getLastClipboardError())
 	if errorString != "" {
-		err = errors.New("errorString")
+		err = errors.New(errorString)
 	}
 
 	return err
