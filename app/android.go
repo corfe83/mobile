@@ -43,7 +43,8 @@ extern EGLSurface surface;
 char* createEGLSurface(ANativeWindow* window);
 char* destroyEGLSurface();
 int32_t getKeyRune(JNIEnv* env, AInputEvent* e);
-void setupClipboardManager(ANativeActivity *activity);
+const char * setupClipboardManager(ANativeActivity *activity);
+const char * getClipboardString();
 */
 import "C"
 import (
@@ -106,7 +107,7 @@ func callMain(mainPC uintptr) {
 
 //export onStart
 func onStart(activity *C.ANativeActivity) {
-	C.setupClipboardManager(activity)
+	ClippyResult = C.GoString(C.setupClipboardManager(activity))
 }
 
 //export onResume
@@ -285,6 +286,14 @@ func main(f func(App)) {
 var mainUserFn func(App)
 
 var ClippyResult string
+
+func GetClipboardString() string {
+	if ClippyResult != "" {
+		return ClippyResult
+	}
+
+	return C.GoString(C.getClipboardString())
+}
 
 var jni, context unsafe.Pointer
 
