@@ -20,6 +20,7 @@ static jclass current_class;
 static jclass find_class(JNIEnv *env, const char *class_name) {
 	jclass clazz = (*env)->FindClass(env, class_name);
 	if (clazz == NULL) {
+		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
 		LOG_FATAL("cannot find %s", class_name);
 		return NULL;
@@ -30,6 +31,7 @@ static jclass find_class(JNIEnv *env, const char *class_name) {
 static jmethodID find_method(JNIEnv *env, jclass clazz, const char *name, const char *sig) {
 	jmethodID m = (*env)->GetMethodID(env, clazz, name, sig);
 	if (m == 0) {
+		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
 		LOG_FATAL("cannot find method %s %s", name, sig);
 		return 0;
@@ -40,6 +42,7 @@ static jmethodID find_method(JNIEnv *env, jclass clazz, const char *name, const 
 static jmethodID find_static_method(JNIEnv *env, jclass clazz, const char *name, const char *sig) {
 	jmethodID m = (*env)->GetStaticMethodID(env, clazz, name, sig);
 	if (m == 0) {
+		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
 		LOG_FATAL("cannot find method %s %s", name, sig);
 		return 0;
@@ -450,6 +453,7 @@ void setupClipboardManager(ANativeActivity *activity) {
 		clipboardLastError = "failed to find ClipData class";
 		return;
 	}
+	clipDataClass = (jclass)(*env)->NewGlobalRef(env, clipDataClass);
 
 	getItemAtFunc = find_method(env, clipDataClass, "getItemAt", "(I)Landroid/content/ClipData$Item;");
 	if (getItemAtFunc == NULL) {
@@ -466,6 +470,7 @@ void setupClipboardManager(ANativeActivity *activity) {
 		clipboardLastError = "failed to find ClipData.Item class";
 		return;
 	}
+	clipDataItemClass = (jclass)(*env)->NewGlobalRef(env, clipDataItemClass);
 
 	getTextFunc = find_method(env, clipDataItemClass, "getText", "()Ljava/lang/CharSequence;");
 	if (getTextFunc == NULL) {
@@ -492,23 +497,15 @@ void setupClipboardManager(ANativeActivity *activity) {
 	}
 
 	// Get constructors
-	clipDataConstructor = find_method(env, clipDataClass, "<init>", "()V");
+	clipDataItemConstructor = find_method(env, clipDataItemClass, "<init>", "(Ljava/lang/CharSequence;)V");
 	if (clipDataConstructor == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		clipboardLastError = "failed to find ClipData constructor";
+		clipboardLastError = "failed to find ClipDataItem constructor";
 		return;
 	}
 
-	clipDataItemConstructor = find_method(env, clipDataItemClass, "<init>", "()V");
-	if (clipDataConstructor == NULL) {
-		(*env)->ExceptionClear(env);
-		clipboardFailed = 1;
-		clipboardLastError = "failed to find ClipData constructor";
-		return;
-	}
-
-	clipDataConstructor = find_method(env, clipDataClass, "<init>", "()V");
+	clipDataConstructor = find_method(env, clipDataClass, "<init>", "(Landroid/content/ClipDescription;Landroid/content/ClipData$Item;)V");
 	if (clipDataConstructor == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
@@ -523,8 +520,9 @@ void setupClipboardManager(ANativeActivity *activity) {
 		clipboardLastError = "failed to find ClipDescription class";
 		return;
 	}
+	clipDescriptionClass = (jclass)(*env)->NewGlobalRef(env, clipDescriptionClass);
 
-	clipDescriptionConstructor = find_method(env, clipDescriptionClass, "<init>", "()V");
+	clipDescriptionConstructor = find_method(env, clipDescriptionClass, "<init>", "(Ljava/lang/CharSequence;[Ljava/lang/String;)V");
 	if (clipDescriptionConstructor == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
