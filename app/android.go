@@ -311,6 +311,10 @@ func SetClipboardString(input string) (error) {
 	return err
 }
 
+func OpenWebSite(url string) error {
+	return nil
+}
+
 var jni, context unsafe.Pointer
 
 func mainUI(vm uintptr, jniEnv, ctx uintptr) error {
