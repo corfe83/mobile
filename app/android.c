@@ -208,29 +208,31 @@ jmethodID getItemAtFunc = NULL;
 jmethodID getTextFunc = NULL;
 jmethodID charSequencetoString = NULL;
 jmethodID setPrimaryClipFunc = NULL;
+jmethodID clipDataConstructor = NULL;
+jmethodID clipDataItemConstructor = NULL;
+jmethodID clipDescriptionConstructor = NULL;
 unsigned char clipboardFailed = 0;
 
-JNIEnv* envForClipboardThisThread;
-
 // 1 means success, 0 means failure
-unsigned char JVMEnsureAttached() {
+JNIEnv* JVMEnsureAttached() {
+	JNIEnv* env;
 	if (clipboardFailed != 0) {
-		return 0;
+		return NULL;
 	}
 
-	if ((*vmForClipboard)->GetEnv(vmForClipboard, (void**)&envForClipboardThisThread, JNI_VERSION_1_6) == JNI_OK) {
-		return 1;
+	if ((*vmForClipboard)->GetEnv(vmForClipboard, (void**)&env, JNI_VERSION_1_6) == JNI_OK) {
+		return env;
 	}
 
-	if ((*vmForClipboard)->AttachCurrentThread(vmForClipboard, &envForClipboardThisThread, NULL) == JNI_OK) {
-		return 1;
+	if ((*vmForClipboard)->AttachCurrentThread(vmForClipboard, &env, NULL) == JNI_OK) {
+		return env;
 	}
 
-	return 0;
+	return NULL;
 }
 
 const char * getClipboardString() {
-	JVMEnsureAttached();
+	JNIEnv* envForClipboardThisThread = JVMEnsureAttached();
 	jobject clipData = (*envForClipboardThisThread)->CallObjectMethod(envForClipboardThisThread, clipboardManager, getPrimaryClipFunc);
 	if (clipData == NULL) {
 		return "Error getting clipboard data";
@@ -241,18 +243,24 @@ const char * getClipboardString() {
 		return "Error getting first item of clipboard";
 	}
 
-	jobject charSequence = (*envForClipboardThisThread)->CallObjectMethod(envForClipboardThisThread, clipFirstItem, getTextFunc, 0);
+	jobject charSequence = (*envForClipboardThisThread)->CallObjectMethod(envForClipboardThisThread, clipFirstItem, getTextFunc);
 	if (charSequence == NULL) {
 		return "Looks like no text is copied right now";
 	}
 
-	jstring result = (jstring)(*envForClipboardThisThread)->CallObjectMethod(envForClipboardThisThread, charSequence, charSequencetoString, 0);
+	jstring result = (jstring)(*envForClipboardThisThread)->CallObjectMethod(envForClipboardThisThread, charSequence, charSequencetoString);
 	if (result == NULL) {
 		return "CharSequence could not be converted to string";
 	}
 
 	return (*envForClipboardThisThread)->GetStringUTFChars(envForClipboardThisThread, result, 0);
 }
+
+void setClipboardString(const char * input) {
+	JNIEnv* envForClipboardThisThread = JVMEnsureAttached();
+	
+}
+
 
 const char * setupClipboardManager(ANativeActivity *activity) {
 	JNIEnv* env = activity->env;
@@ -332,8 +340,8 @@ const char * setupClipboardManager(ANativeActivity *activity) {
 		return "failed to find getSystemService method";
 	}
 
-	clipboardManager = (*env)->CallObjectMethod(env, applicationContext, getSystemServiceFunc, clipboardServiceName);
-	if (clipboardManager == NULL) {
+	jobject localClipboardManager = (*env)->CallObjectMethod(env, applicationContext, getSystemServiceFunc, clipboardServiceName);
+	if (localClipboardManager == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
 		return "failed to get clipboard service";
@@ -402,6 +410,6 @@ const char * setupClipboardManager(ANativeActivity *activity) {
 		return "failed to find toString method";
 	}
 
-	(*env)->NewGlobalRef(env, clipboardManager);
-	return "Success!";
+	clipboardManager = (*env)->NewGlobalRef(env, localClipboardManager);
+	return "";
 }
