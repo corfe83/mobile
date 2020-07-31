@@ -498,7 +498,7 @@ void setupClipboardManager(ANativeActivity *activity) {
 
 	// Get constructors
 	clipDataItemConstructor = find_method(env, clipDataItemClass, "<init>", "(Ljava/lang/CharSequence;)V");
-	if (clipDataConstructor == NULL) {
+	if (clipDataItemConstructor == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
 		clipboardLastError = "failed to find ClipDataItem constructor";
