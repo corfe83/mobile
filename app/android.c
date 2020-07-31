@@ -243,6 +243,10 @@ const char * getLastClipboardError() {
 }
 
 const char * getClipboardString() {
+	if (clipboardFailed != 0) {
+		return "";
+	}
+
 	JNIEnv* env = JVMEnsureAttached();
 	jobject clipData = (*env)->CallObjectMethod(env, clipboardManager, getPrimaryClipFunc);
 	if (clipData == NULL) {
@@ -276,6 +280,10 @@ const char * getClipboardString() {
 }
 
 void setClipboardString(const char * input) {
+	if (clipboardFailed != 0) {
+		return;
+	}
+
 	JNIEnv* env = JVMEnsureAttached();
 
 	// Single string in array of text/plain MIME type
