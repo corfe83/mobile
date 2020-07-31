@@ -43,11 +43,14 @@ extern EGLSurface surface;
 char* createEGLSurface(ANativeWindow* window);
 char* destroyEGLSurface();
 int32_t getKeyRune(JNIEnv* env, AInputEvent* e);
-const char * setupClipboardManager(ANativeActivity *activity);
+void setupClipboardManager(ANativeActivity *activity);
 const char * getClipboardString();
+void setClipboardString(const char * input);
+const char * getLastClipboardError();
 */
 import "C"
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -107,7 +110,8 @@ func callMain(mainPC uintptr) {
 
 //export onStart
 func onStart(activity *C.ANativeActivity) {
-	ClippyResult = C.GoString(C.setupClipboardManager(activity))
+	C.setupClipboardManager(activity)
+	
 }
 
 //export onResume
@@ -285,14 +289,28 @@ func main(f func(App)) {
 
 var mainUserFn func(App)
 
-var ClippyResult string
+func GetClipboardString() (string, error) {
+	result := C.GoString(C.getClipboardString())
 
-func GetClipboardString() string {
-	if ClippyResult != "" {
-		return ClippyResult
+	var err error
+	errorString := C.GoString(C.getLastClipboardError())
+	if errorString != "" {
+		err = errors.New("errorString")
 	}
 
-	return C.GoString(C.getClipboardString())
+	return result, err
+}
+
+func SetClipboardString(input string) (error) {
+	C.setClipboardString(C.CString(input))
+
+	var err error
+	errorString := C.GoString(C.getLastClipboardError())
+	if errorString != "" {
+		err = errors.New("errorString")
+	}
+
+	return err
 }
 
 var jni, context unsafe.Pointer
