@@ -203,15 +203,22 @@ int32_t getKeyRune(JNIEnv* env, AInputEvent* e) {
 }
 
 jobject clipboardManager = NULL;
+
+jclass clipDataClass = NULL;
+jmethodID clipDataConstructor = NULL;
+jclass clipDataItemClass = NULL;
+jmethodID clipDataItemConstructor = NULL;
+jclass clipDescriptionClass = NULL;
+jmethodID clipDescriptionConstructor = NULL;
+
 jmethodID getPrimaryClipFunc = NULL;
 jmethodID getItemAtFunc = NULL;
 jmethodID getTextFunc = NULL;
 jmethodID charSequencetoString = NULL;
 jmethodID setPrimaryClipFunc = NULL;
-jmethodID clipDataConstructor = NULL;
-jmethodID clipDataItemConstructor = NULL;
-jmethodID clipDescriptionConstructor = NULL;
 unsigned char clipboardFailed = 0;
+
+const char *clipboardLastError = "";
 
 // 1 means success, 0 means failure
 JNIEnv* JVMEnsureAttached() {
@@ -231,46 +238,94 @@ JNIEnv* JVMEnsureAttached() {
 	return NULL;
 }
 
+const char * getLastClipboardError() {
+	return clipboardLastError;
+}
+
 const char * getClipboardString() {
-	JNIEnv* envForClipboardThisThread = JVMEnsureAttached();
-	jobject clipData = (*envForClipboardThisThread)->CallObjectMethod(envForClipboardThisThread, clipboardManager, getPrimaryClipFunc);
+	JNIEnv* env = JVMEnsureAttached();
+	jobject clipData = (*env)->CallObjectMethod(env, clipboardManager, getPrimaryClipFunc);
 	if (clipData == NULL) {
-		return "Error getting clipboard data";
+		(*env)->ExceptionClear(env);
+		clipboardLastError = "Error getting clipboard data";
+		return "";
 	}
 
-	jobject clipFirstItem = (*envForClipboardThisThread)->CallObjectMethod(envForClipboardThisThread, clipData, getItemAtFunc, 0);
+	jobject clipFirstItem = (*env)->CallObjectMethod(env, clipData, getItemAtFunc, 0);
 	if (clipFirstItem == NULL) {
-		return "Error getting first item of clipboard";
+		(*env)->ExceptionClear(env);
+		clipboardLastError = "Error getting first item of clipboard";
+		return "";
 	}
 
-	jobject charSequence = (*envForClipboardThisThread)->CallObjectMethod(envForClipboardThisThread, clipFirstItem, getTextFunc);
+	jobject charSequence = (*env)->CallObjectMethod(env, clipFirstItem, getTextFunc);
 	if (charSequence == NULL) {
-		return "Looks like no text is copied right now";
+		(*env)->ExceptionClear(env);
+		clipboardLastError = "Looks like no text is copied right now";
+		return "";
 	}
 
-	jstring result = (jstring)(*envForClipboardThisThread)->CallObjectMethod(envForClipboardThisThread, charSequence, charSequencetoString);
+	jstring result = (jstring)(*env)->CallObjectMethod(env, charSequence, charSequencetoString);
 	if (result == NULL) {
-		return "CharSequence could not be converted to string";
+		(*env)->ExceptionClear(env);
+		clipboardLastError = "CharSequence could not be converted to string";
+		return "";
 	}
 
-	return (*envForClipboardThisThread)->GetStringUTFChars(envForClipboardThisThread, result, 0);
+	return (*env)->GetStringUTFChars(env, result, 0);
 }
 
 void setClipboardString(const char * input) {
-	JNIEnv* envForClipboardThisThread = JVMEnsureAttached();
-	
+	JNIEnv* env = JVMEnsureAttached();
+
+	// Single string in array of text/plain MIME type
+	jstring textToSet = (*env)->NewStringUTF(env, "Text Data");
+	jclass stringClass = (*env)->FindClass(env, "java/lang/String");
+	jstring mimeTypeString = (*env)->NewStringUTF(env, "text/plain");
+	jobjectArray mimeTypeStringArray = (jobjectArray)(*env)->NewObjectArray(env, 1, stringClass, mimeTypeString);
+	if (mimeTypeStringArray == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardLastError = "Failed to create mime type string array";
+		return;
+	}
+
+	jobject clipDescription = (*env)->NewObject(env, clipDescriptionClass, clipDescriptionConstructor, textToSet, mimeTypeStringArray);
+	if (clipDescription == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardLastError = "Failed to create clip description";
+		return;
+	}
+
+	jstring inputString = (*env)->NewStringUTF(env, input);
+	jobject clipDataItem = (*env)->NewObject(env, clipDataItemClass, clipDataItemConstructor, inputString);
+	if (clipDataItem == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardLastError = "Failed to create clip data item";
+		return;
+	}
+
+	jobject clipData = (*env)->NewObject(env, clipDataClass, clipDataConstructor, clipDescription, clipDataItem);
+	if (clipData == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardLastError = "Failed to create clip data";
+		return;
+	}
+
+	(*env)->CallVoidMethod(env, clipboardManager, setPrimaryClipFunc, clipData);
 }
 
 
-const char * setupClipboardManager(ANativeActivity *activity) {
+// Called from OnStart (CANNOT be called from OnCreate)
+void setupClipboardManager(ANativeActivity *activity) {
 	JNIEnv* env = activity->env;
 
 	// If we already failed, or already have it, no need to do anything here
 	if (clipboardFailed == 0 && clipboardManager != NULL) {
-		return "Already initialized";
+		clipboardLastError = "";
+		return;
 	}
 	if (clipboardFailed) {
-		return "Previously failed";
+		return;
 	}
 
 	jobject context = activity->clazz;
@@ -279,7 +334,8 @@ const char * setupClipboardManager(ANativeActivity *activity) {
 	if (contextClass == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to get context class";
+		clipboardLastError = "failed to get context class";
+		return;
 	}
 
 	// Find context
@@ -294,7 +350,8 @@ const char * setupClipboardManager(ANativeActivity *activity) {
 		if (contextClass == NULL) {
 			(*env)->ExceptionClear(env);
 			clipboardFailed = 1;
-			return "failed to get superclass";
+			clipboardLastError = "failed to get superclass";
+			return;
 		}
 	}
 
@@ -302,114 +359,172 @@ const char * setupClipboardManager(ANativeActivity *activity) {
 	if (applicationContext == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to call getApplicationContext()";
+		clipboardLastError = "failed to call getApplicationContext()";
+		return;
 	}
 
 	contextClass = (*env)->GetObjectClass(env, applicationContext);
 	if (contextClass == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to get applicationcontext class";
+		clipboardLastError = "failed to get applicationcontext class";
+		return;
 	}
 
 	jclass generalContextClass = (*env)->FindClass(env, "android/content/Context");
 	if (context == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find context class";
+		clipboardLastError = "failed to find context class";
+		return;
 	}
 
 	jfieldID clipboardServiceField = (*env)->GetStaticFieldID(env, generalContextClass, "CLIPBOARD_SERVICE", "Ljava/lang/String;");
 	if (clipboardServiceField == 0) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find clipboardServiceField";
+		clipboardLastError = "failed to find clipboardServiceField";
+		return;
 	}
 
 	jstring clipboardServiceName = (jstring)(*env)->GetStaticObjectField(env, generalContextClass, clipboardServiceField);
 	if (clipboardServiceName == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to read clipboardServiceField";
+		clipboardLastError = "failed to read clipboardServiceField";
+		return;
 	}
 
 	jmethodID getSystemServiceFunc = find_method(env, contextClass, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
 	if (getSystemServiceFunc == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find getSystemService method";
+		clipboardLastError = "failed to find getSystemService method";
+		return;
 	}
 
 	jobject localClipboardManager = (*env)->CallObjectMethod(env, applicationContext, getSystemServiceFunc, clipboardServiceName);
 	if (localClipboardManager == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to get clipboard service";
+		clipboardLastError = "failed to get clipboard service";
+		return;
 	}
 
 	jclass clipboardManagerClass = (*env)->FindClass(env, "android/content/ClipboardManager");
 	if (clipboardManagerClass == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to get class of clipboardmanager";
+		clipboardLastError = "failed to get class of clipboardmanager";
+		return;
 	}
 
 	setPrimaryClipFunc = find_method(env, clipboardManagerClass, "setPrimaryClip", "(Landroid/content/ClipData;)V");
 	if (setPrimaryClipFunc == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find setPrimaryClip method";
+		clipboardLastError = "failed to find setPrimaryClip method";
+		return;
 	}
 
 	getPrimaryClipFunc = find_method(env, clipboardManagerClass, "getPrimaryClip", "()Landroid/content/ClipData;");
 	if (getPrimaryClipFunc == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find getPrimaryClip method";
+		clipboardLastError = "failed to find getPrimaryClip method";
+		return;
 	}
 
-	jclass clipDataClass = (*env)->FindClass(env, "android/content/ClipData");
+	clipDataClass = (*env)->FindClass(env, "android/content/ClipData");
 	if (clipDataClass == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find ClipData class";
+		clipboardLastError = "failed to find ClipData class";
+		return;
 	}
 
 	getItemAtFunc = find_method(env, clipDataClass, "getItemAt", "(I)Landroid/content/ClipData$Item;");
 	if (getItemAtFunc == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find getItemAt method";
+		clipboardLastError = "failed to find getItemAt method";
+		return;
 	}
 
-	jclass clipDataItemClass = (*env)->FindClass(env, "android/content/ClipData$Item");
+	clipDataItemClass = (*env)->FindClass(env, "android/content/ClipData$Item");
 	if (clipDataItemClass == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find ClipData.Item class";
+		clipboardLastError = "failed to find ClipData.Item class";
+		return;
 	}
 
 	getTextFunc = find_method(env, clipDataItemClass, "getText", "()Ljava/lang/CharSequence;");
 	if (getTextFunc == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find getText method";
+		clipboardLastError = "failed to find getText method";
+		return;
 	}
 
 	jclass charSequenceClass = (*env)->FindClass(env, "java/lang/CharSequence");
 	if (charSequenceClass == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find CharSequence class";
+		clipboardLastError = "failed to find CharSequence class";
+		return;
 	}
 
 	charSequencetoString = find_method(env, charSequenceClass, "toString", "()Ljava/lang/String;");
 	if (charSequencetoString == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
-		return "failed to find toString method";
+		clipboardLastError = "failed to find toString method";
+		return;
+	}
+
+	// Get constructors
+	clipDataConstructor = find_method(env, clipDataClass, "<init>", "()V");
+	if (clipDataConstructor == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		clipboardLastError = "failed to find ClipData constructor";
+		return;
+	}
+
+	clipDataItemConstructor = find_method(env, clipDataItemClass, "<init>", "()V");
+	if (clipDataConstructor == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		clipboardLastError = "failed to find ClipData constructor";
+		return;
+	}
+
+	clipDataConstructor = find_method(env, clipDataClass, "<init>", "()V");
+	if (clipDataConstructor == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		clipboardLastError = "failed to find ClipData constructor";
+		return;
+	}
+
+	clipDescriptionClass = (*env)->FindClass(env, "android/content/ClipDescription");
+	if (clipDescriptionClass == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		clipboardLastError = "failed to find ClipDescription class";
+		return;
+	}
+
+	clipDescriptionConstructor = find_method(env, clipDescriptionClass, "<init>", "()V");
+	if (clipDescriptionConstructor == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		clipboardLastError = "failed to find ClipDescription constructor";
+		return;
 	}
 
 	clipboardManager = (*env)->NewGlobalRef(env, localClipboardManager);
-	return "";
+	clipboardLastError = "";
+	return;
 }
