@@ -258,7 +258,7 @@ const char * setupClipboardManager(ANativeActivity *activity) {
 	JNIEnv* env = activity->env;
 
 	// If we already failed, or already have it, no need to do anything here
-	if (clipboardManager != NULL) {
+	if (clipboardFailed == 0 && clipboardManager != NULL) {
 		return "Already initialized";
 	}
 	if (clipboardFailed) {
@@ -346,18 +346,18 @@ const char * setupClipboardManager(ANativeActivity *activity) {
 		return "failed to get class of clipboardmanager";
 	}
 
+	setPrimaryClipFunc = find_method(env, clipboardManagerClass, "setPrimaryClip", "(Landroid/content/ClipData;)V");
+	if (setPrimaryClipFunc == NULL) {
+		(*env)->ExceptionClear(env);
+		clipboardFailed = 1;
+		return "failed to find setPrimaryClip method";
+	}
+
 	getPrimaryClipFunc = find_method(env, clipboardManagerClass, "getPrimaryClip", "()Landroid/content/ClipData;");
 	if (getPrimaryClipFunc == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
 		return "failed to find getPrimaryClip method";
-	}
-
-	setPrimaryClipFunc = find_method(env, clipboardManagerClass, "setPrimaryClip", "(Landroid/content/ClipData;)");
-	if (setPrimaryClipFunc == NULL) {
-		(*env)->ExceptionClear(env);
-		clipboardFailed = 1;
-		return "failed to find setPrimaryClip method";
 	}
 
 	jclass clipDataClass = (*env)->FindClass(env, "android/content/ClipData");
@@ -367,14 +367,14 @@ const char * setupClipboardManager(ANativeActivity *activity) {
 		return "failed to find ClipData class";
 	}
 
-	getItemAtFunc = find_method(env, clipDataClass, "getItemAt", "(I)Landroid/content/ClipData/Item;");
+	getItemAtFunc = find_method(env, clipDataClass, "getItemAt", "(I)Landroid/content/ClipData$Item;");
 	if (getItemAtFunc == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
 		return "failed to find getItemAt method";
 	}
 
-	jclass clipDataItemClass = (*env)->FindClass(env, "android/content/ClipData/Item");
+	jclass clipDataItemClass = (*env)->FindClass(env, "android/content/ClipData$Item");
 	if (clipDataItemClass == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
