@@ -47,6 +47,9 @@ void setupClipboardManager(ANativeActivity *activity);
 const char * getClipboardString();
 void setClipboardString(const char * input);
 const char * getLastClipboardError();
+void setupBrowser(ANativeActivity *activity);
+void openUrl(const char * url);
+const char * getLastBrowserError();
 */
 import "C"
 import (
@@ -111,7 +114,7 @@ func callMain(mainPC uintptr) {
 //export onStart
 func onStart(activity *C.ANativeActivity) {
 	C.setupClipboardManager(activity)
-	
+	C.setupBrowser(activity)
 }
 
 //export onResume
@@ -313,7 +316,15 @@ func SetClipboardString(input string) (error) {
 	return err
 }
 
-func OpenWebSite(url string) error {
+func OpenUrl(url string) error {
+	C.openUrl(C.CString(url))
+
+	errorString := C.GoString(C.getLastBrowserError())
+	if errorString != "" {
+		err := errors.New(errorString)
+		return err
+	}
+
 	return nil
 }
 

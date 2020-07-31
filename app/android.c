@@ -207,6 +207,8 @@ int32_t getKeyRune(JNIEnv* env, AInputEvent* e) {
 
 jobject clipboardManager = NULL;
 
+jclass contextClass = NULL;
+
 jclass clipDataClass = NULL;
 jmethodID clipDataConstructor = NULL;
 jclass clipDataItemClass = NULL;
@@ -332,7 +334,6 @@ void setupClipboardManager(ANativeActivity *activity) {
 
 	// If we already failed, or already have it, no need to do anything here
 	if (clipboardFailed == 0 && clipboardManager != NULL) {
-		clipboardLastError = "";
 		return;
 	}
 	if (clipboardFailed) {
@@ -341,7 +342,7 @@ void setupClipboardManager(ANativeActivity *activity) {
 
 	jobject context = activity->clazz;
 
-	jclass contextClass = (*env)->GetObjectClass(env, context);
+	contextClass = (*env)->GetObjectClass(env, context);
 	if (contextClass == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
@@ -381,6 +382,7 @@ void setupClipboardManager(ANativeActivity *activity) {
 		clipboardLastError = "failed to get applicationcontext class";
 		return;
 	}
+	contextClass = (jclass)(*env)->NewGlobalRef(env, contextClass);
 
 	jclass generalContextClass = (*env)->FindClass(env, "android/content/Context");
 	if (context == NULL) {
@@ -533,4 +535,98 @@ void setupClipboardManager(ANativeActivity *activity) {
 	clipboardManager = (*env)->NewGlobalRef(env, localClipboardManager);
 	clipboardLastError = "";
 	return;
+}
+
+jclass intentClass = NULL;
+jmethodID intentConstructor = NULL;
+
+jclass uriClass = NULL;
+jmethodID uriParseFunc = NULL;
+
+jmethodID startActivityFunc = NULL;
+
+jstring actionViewString = NULL;
+
+unsigned char browserFailed = 0;
+unsigned char browserInitCompleted = 0;
+const char *browserLastError = "";
+void setupBrowser(ANativeActivity *activity) {
+	JNIEnv* env = activity->env;
+
+	// If we already failed, or already have it, no need to do anything here
+	if (browserFailed == 0 && browserInitCompleted != 0) {
+		return;
+	}
+	if (browserFailed) {
+		return;
+	}
+
+	intentClass = (*env)->FindClass(env, "android/content/Intent");
+	if (intentClass == NULL) {
+		(*env)->ExceptionClear(env);
+		browserFailed = 1;
+		browserLastError = "failed to find Intent class";
+		return;
+	}
+	intentClass = (jclass)(*env)->NewGlobalRef(env, intentClass);
+
+	intentConstructor = find_method(env, intentClass, "<init>", "(Ljava/lang/String;Landroid/net/Uri;)V");
+	if (intentConstructor == NULL) {
+		(*env)->ExceptionClear(env);
+		browserFailed = 1;
+		browserLastError = "failed to find Intent constructor";
+		return;
+	}
+
+	uriClass = (*env)->FindClass(env, "android/net/Uri");
+	if (uriClass == NULL) {
+		(*env)->ExceptionClear(env);
+		browserFailed = 1;
+		browserLastError = "failed to find Uri class";
+		return;
+	}
+	uriClass = (jclass)(*env)->NewGlobalRef(env, uriClass);
+
+	uriParseFunc = find_static_method(env, uriClass, "parse", "(Ljava/lang/String;)Landroid/net/Uri;");
+	if (uriParseFunc == NULL) {
+		(*env)->ExceptionClear(env);
+		browserFailed = 1;
+		browserLastError = "failed to find static method Uri.parse";
+		return;
+	}
+
+	jfieldID actionViewField = (*env)->GetStaticFieldID(env, intentClass, "ACTION_VIEW", "Ljava/lang/String;");
+	if (actionViewField == 0) {
+		(*env)->ExceptionClear(env);
+		browserFailed = 1;
+		browserLastError = "failed to find Intent.ACTION_VIEW";
+		return;
+	}
+
+	actionViewString = (jstring)(*env)->GetStaticObjectField(env, intentClass, actionViewField);
+	if (actionViewString == NULL) {
+		(*env)->ExceptionClear(env);
+		browserFailed = 1;
+		browserLastError = "failed to read Intent.ACTION_VIEW";
+		return;
+	}
+	actionViewString = (jstring)(*env)->NewGlobalRef(env, actionViewString);
+
+	startActivityFunc = find_method(env, contextClass, "startActivity", "(Landroid/content/Intent;)V");
+	if (intentConstructor == NULL) {
+		(*env)->ExceptionClear(env);
+		browserFailed = 1;
+		browserLastError = "failed to find startActivity function";
+		return;
+	}
+
+	browserInitCompleted = 1;
+	browserLastError = "Success so far!";
+}
+
+void openUrl(const char * url) {
+}
+
+const char * getLastBrowserError() {
+	return browserLastError;
 }
