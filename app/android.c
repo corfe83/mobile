@@ -206,6 +206,7 @@ int32_t getKeyRune(JNIEnv* env, AInputEvent* e) {
 }
 
 jobject clipboardManager = NULL;
+jobject applicationContext = NULL;
 
 jclass contextClass = NULL;
 
@@ -367,13 +368,14 @@ void setupClipboardManager(ANativeActivity *activity) {
 		}
 	}
 
-	jobject applicationContext = (*env)->CallObjectMethod(env, context, getApplicationContextFunc);
+	applicationContext = (*env)->CallObjectMethod(env, context, getApplicationContextFunc);
 	if (applicationContext == NULL) {
 		(*env)->ExceptionClear(env);
 		clipboardFailed = 1;
 		clipboardLastError = "failed to call getApplicationContext()";
 		return;
 	}
+	applicationContext = (jclass)(*env)->NewGlobalRef(env, applicationContext);
 
 	contextClass = (*env)->GetObjectClass(env, applicationContext);
 	if (contextClass == NULL) {
@@ -621,10 +623,43 @@ void setupBrowser(ANativeActivity *activity) {
 	}
 
 	browserInitCompleted = 1;
-	browserLastError = "Success so far!";
 }
 
 void openUrl(const char * url) {
+	if (browserFailed != 0) {
+		return;
+	}
+
+	JNIEnv* env = JVMEnsureAttached();
+
+	jstring urlstring = (*env)->NewStringUTF(env, url);
+	if (urlstring == NULL) {
+		(*env)->ExceptionClear(env);
+		browserLastError = "Failed to create jstring for url";
+		return;
+	}
+
+	jobject uri = (jstring)(*env)->CallStaticObjectMethod(env, uriClass, uriParseFunc, urlstring);
+	if (uri == NULL) {
+		(*env)->ExceptionClear(env);
+		browserLastError = "Uri.parse call failed";
+		return;
+	}
+
+	jobject intent = (*env)->NewObject(env, intentClass, intentConstructor, actionViewString, uri);
+	if (intent == NULL) {
+		(*env)->ExceptionClear(env);
+		browserLastError = "Failed to create intent";
+		return;
+	}
+
+	//browserLastError = "got to here";/*
+	(*env)->CallVoidMethod(env, applicationContext, startActivityFunc, intent);
+	if ((*env)->ExceptionOccurred(env) != NULL) {
+		(*env)->ExceptionClear(env);
+		browserLastError = "Failed to start activity";
+		return;
+	}//*/
 }
 
 const char * getLastBrowserError() {
