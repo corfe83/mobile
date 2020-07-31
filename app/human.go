@@ -12,6 +12,6 @@ func GetClipboardString() (string, error) {
 	return "", errors.New("Unsupported platform")
 }
 
-func OpenWebSite(url string) error {
+func OpenUrl(url string) error {
 	return errors.New("Unsupported platform")
 }
