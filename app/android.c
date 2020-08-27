@@ -246,6 +246,10 @@ JNIEnv* JVMEnsureAttached() {
 
 void copyExceptionMessage(JNIEnv* env, const char *prefix, char *cStringOutput, size_t maxSize) {
 	jthrowable e = (*env)->ExceptionOccurred(env);
+	if (e == NULL) {
+		strncpy(cStringOutput, prefix, maxSize);
+		return;
+	}
 	(*env)->ExceptionClear(env); // clears the exception; e remains valid
 
 	jclass clazz = (*env)->GetObjectClass(env, e);
@@ -275,25 +279,25 @@ const char * getClipboardString() {
 	JNIEnv* env = JVMEnsureAttached();
 	jobject clipData = (*env)->CallObjectMethod(env, clipboardManager, getPrimaryClipFunc);
 	if (clipData == NULL) {
-		copyExceptionMessage(env, "Error getting clipboard data", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "Error getting clipboard data:", clipboardLastError, sizeof(clipboardLastError));
 		return "";
 	}
 
 	jobject clipFirstItem = (*env)->CallObjectMethod(env, clipData, getItemAtFunc, 0);
 	if (clipFirstItem == NULL) {
-		copyExceptionMessage(env, "Error getting first item of clipboard", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "Error getting first item of clipboard:", clipboardLastError, sizeof(clipboardLastError));
 		return "";
 	}
 
 	jobject charSequence = (*env)->CallObjectMethod(env, clipFirstItem, getTextFunc);
 	if (charSequence == NULL) {
-		copyExceptionMessage(env, "Looks like no text is copied right now", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "Looks like no text is copied right now:", clipboardLastError, sizeof(clipboardLastError));
 		return "";
 	}
 
 	jstring result = (jstring)(*env)->CallObjectMethod(env, charSequence, charSequencetoString);
 	if (result == NULL) {
-		copyExceptionMessage(env, "CharSequence could not be converted to string", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "CharSequence could not be converted to string:", clipboardLastError, sizeof(clipboardLastError));
 		return "";
 	}
 
@@ -313,26 +317,26 @@ void setClipboardString(const char * input) {
 	jstring mimeTypeString = (*env)->NewStringUTF(env, "text/plain");
 	jobjectArray mimeTypeStringArray = (jobjectArray)(*env)->NewObjectArray(env, 1, stringClass, mimeTypeString);
 	if (mimeTypeStringArray == NULL) {
-		copyExceptionMessage(env, "Failed to create mime type string array", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "Failed to create mime type string array:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	jobject clipDescription = (*env)->NewObject(env, clipDescriptionClass, clipDescriptionConstructor, textToSet, mimeTypeStringArray);
 	if (clipDescription == NULL) {
-		copyExceptionMessage(env, "Failed to create clip description", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "Failed to create clip description:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	jstring inputString = (*env)->NewStringUTF(env, input);
 	jobject clipDataItem = (*env)->NewObject(env, clipDataItemClass, clipDataItemConstructor, inputString);
 	if (clipDataItem == NULL) {
-		copyExceptionMessage(env, "Failed to create clip data item", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "Failed to create clip data item:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	jobject clipData = (*env)->NewObject(env, clipDataClass, clipDataConstructor, clipDescription, clipDataItem);
 	if (clipData == NULL) {
-		copyExceptionMessage(env, "Failed to create clip data", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "Failed to create clip data:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
@@ -357,7 +361,7 @@ void setupClipboardManager(ANativeActivity *activity) {
 	contextClass = (*env)->GetObjectClass(env, context);
 	if (contextClass == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to get context class", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to get context class:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
@@ -372,7 +376,7 @@ void setupClipboardManager(ANativeActivity *activity) {
 		contextClass = (*env)->GetSuperclass(env, contextClass);
 		if (contextClass == NULL) {
 			clipboardFailed = 1;
-			copyExceptionMessage(env, "failed to get superclass", clipboardLastError, sizeof(clipboardLastError));
+			copyExceptionMessage(env, "failed to get superclass:", clipboardLastError, sizeof(clipboardLastError));
 			return;
 		}
 	}
@@ -380,7 +384,7 @@ void setupClipboardManager(ANativeActivity *activity) {
 	applicationContext = (*env)->CallObjectMethod(env, context, getApplicationContextFunc);
 	if (applicationContext == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to call getApplicationContext()", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to call getApplicationContext():", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 	applicationContext = (jclass)(*env)->NewGlobalRef(env, applicationContext);
@@ -388,7 +392,7 @@ void setupClipboardManager(ANativeActivity *activity) {
 	contextClass = (*env)->GetObjectClass(env, applicationContext);
 	if (contextClass == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to get applicationcontext class", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to get applicationcontext class:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 	contextClass = (jclass)(*env)->NewGlobalRef(env, contextClass);
@@ -396,63 +400,63 @@ void setupClipboardManager(ANativeActivity *activity) {
 	jclass generalContextClass = (*env)->FindClass(env, "android/content/Context");
 	if (context == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find context class", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find context class:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	jfieldID clipboardServiceField = (*env)->GetStaticFieldID(env, generalContextClass, "CLIPBOARD_SERVICE", "Ljava/lang/String;");
 	if (clipboardServiceField == 0) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find clipboardServiceField", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find clipboardServiceField:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	jstring clipboardServiceName = (jstring)(*env)->GetStaticObjectField(env, generalContextClass, clipboardServiceField);
 	if (clipboardServiceName == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to read clipboardServiceField", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to read clipboardServiceField:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	jmethodID getSystemServiceFunc = find_method(env, contextClass, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
 	if (getSystemServiceFunc == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find getSystemService method", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find getSystemService method:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	jobject localClipboardManager = (*env)->CallObjectMethod(env, applicationContext, getSystemServiceFunc, clipboardServiceName);
 	if (localClipboardManager == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to get clipboard service", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to get clipboard service:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	jclass clipboardManagerClass = (*env)->FindClass(env, "android/content/ClipboardManager");
 	if (clipboardManagerClass == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to get class of clipboardmanager", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to get class of clipboardmanager:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	setPrimaryClipFunc = find_method(env, clipboardManagerClass, "setPrimaryClip", "(Landroid/content/ClipData;)V");
 	if (setPrimaryClipFunc == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find setPrimaryClip method", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find setPrimaryClip method:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	getPrimaryClipFunc = find_method(env, clipboardManagerClass, "getPrimaryClip", "()Landroid/content/ClipData;");
 	if (getPrimaryClipFunc == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find getPrimaryClip method", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find getPrimaryClip method:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	clipDataClass = (*env)->FindClass(env, "android/content/ClipData");
 	if (clipDataClass == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find ClipData class", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find ClipData class:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 	clipDataClass = (jclass)(*env)->NewGlobalRef(env, clipDataClass);
@@ -460,14 +464,14 @@ void setupClipboardManager(ANativeActivity *activity) {
 	getItemAtFunc = find_method(env, clipDataClass, "getItemAt", "(I)Landroid/content/ClipData$Item;");
 	if (getItemAtFunc == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find getItemAt method", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find getItemAt method:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	clipDataItemClass = (*env)->FindClass(env, "android/content/ClipData$Item");
 	if (clipDataItemClass == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find ClipData.Item class", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find ClipData.Item class:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 	clipDataItemClass = (jclass)(*env)->NewGlobalRef(env, clipDataItemClass);
@@ -475,21 +479,21 @@ void setupClipboardManager(ANativeActivity *activity) {
 	getTextFunc = find_method(env, clipDataItemClass, "getText", "()Ljava/lang/CharSequence;");
 	if (getTextFunc == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find getText method", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find getText method:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	jclass charSequenceClass = (*env)->FindClass(env, "java/lang/CharSequence");
 	if (charSequenceClass == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find CharSequence class", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find CharSequence class:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	charSequencetoString = find_method(env, charSequenceClass, "toString", "()Ljava/lang/String;");
 	if (charSequencetoString == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find toString method", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find toString method:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
@@ -497,21 +501,21 @@ void setupClipboardManager(ANativeActivity *activity) {
 	clipDataItemConstructor = find_method(env, clipDataItemClass, "<init>", "(Ljava/lang/CharSequence;)V");
 	if (clipDataItemConstructor == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find ClipDataItem constructor", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find ClipDataItem constructor:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	clipDataConstructor = find_method(env, clipDataClass, "<init>", "(Landroid/content/ClipDescription;Landroid/content/ClipData$Item;)V");
 	if (clipDataConstructor == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find ClipData constructor", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find ClipData constructor:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
 	clipDescriptionClass = (*env)->FindClass(env, "android/content/ClipDescription");
 	if (clipDescriptionClass == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find ClipDescription class", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find ClipDescription class:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 	clipDescriptionClass = (jclass)(*env)->NewGlobalRef(env, clipDescriptionClass);
@@ -519,7 +523,7 @@ void setupClipboardManager(ANativeActivity *activity) {
 	clipDescriptionConstructor = find_method(env, clipDescriptionClass, "<init>", "(Ljava/lang/CharSequence;[Ljava/lang/String;)V");
 	if (clipDescriptionConstructor == NULL) {
 		clipboardFailed = 1;
-		copyExceptionMessage(env, "failed to find ClipDescription constructor", clipboardLastError, sizeof(clipboardLastError));
+		copyExceptionMessage(env, "failed to find ClipDescription constructor:", clipboardLastError, sizeof(clipboardLastError));
 		return;
 	}
 
@@ -532,12 +536,15 @@ void setupClipboardManager(ANativeActivity *activity) {
 jclass intentClass = NULL;
 jmethodID intentConstructor = NULL;
 
+jmethodID addFlags = NULL;
+
 jclass uriClass = NULL;
 jmethodID uriParseFunc = NULL;
 
 jmethodID startActivityFunc = NULL;
 
 jstring actionViewString = NULL;
+jint newTaskFlag = 0;
 
 unsigned char browserFailed = 0;
 unsigned char browserInitCompleted = 0;
@@ -556,7 +563,7 @@ void setupBrowser(ANativeActivity *activity) {
 	intentClass = (*env)->FindClass(env, "android/content/Intent");
 	if (intentClass == NULL) {
 		browserFailed = 1;
-		copyExceptionMessage(env, "failed to find Intent class", browserLastError, sizeof(browserLastError));
+		copyExceptionMessage(env, "failed to find Intent class:", browserLastError, sizeof(browserLastError));
 		return;
 	}
 	intentClass = (jclass)(*env)->NewGlobalRef(env, intentClass);
@@ -564,14 +571,20 @@ void setupBrowser(ANativeActivity *activity) {
 	intentConstructor = find_method(env, intentClass, "<init>", "(Ljava/lang/String;Landroid/net/Uri;)V");
 	if (intentConstructor == NULL) {
 		browserFailed = 1;
-		copyExceptionMessage(env, "failed to find Intent constructor", browserLastError, sizeof(browserLastError));
+		copyExceptionMessage(env, "failed to find Intent constructor:", browserLastError, sizeof(browserLastError));
 		return;
+	}
+
+	addFlags = find_method(env, intentClass, "addFlags", "(I)Landroid/content/Intent;");
+	if (addFlags == NULL) {
+		browserFailed = 1;
+		copyExceptionMessage(env, "failed to find addFlags method:", browserLastError, sizeof(browserLastError));
 	}
 
 	uriClass = (*env)->FindClass(env, "android/net/Uri");
 	if (uriClass == NULL) {
 		browserFailed = 1;
-		copyExceptionMessage(env, "failed to find Uri class", browserLastError, sizeof(browserLastError));
+		copyExceptionMessage(env, "failed to find Uri class:", browserLastError, sizeof(browserLastError));
 		return;
 	}
 	uriClass = (jclass)(*env)->NewGlobalRef(env, uriClass);
@@ -579,21 +592,36 @@ void setupBrowser(ANativeActivity *activity) {
 	uriParseFunc = find_static_method(env, uriClass, "parse", "(Ljava/lang/String;)Landroid/net/Uri;");
 	if (uriParseFunc == NULL) {
 		browserFailed = 1;
-		copyExceptionMessage(env, "failed to find static method Uri.parse", browserLastError, sizeof(browserLastError));
+		copyExceptionMessage(env, "failed to find static method Uri.parse:", browserLastError, sizeof(browserLastError));
 		return;
 	}
 
 	jfieldID actionViewField = (*env)->GetStaticFieldID(env, intentClass, "ACTION_VIEW", "Ljava/lang/String;");
 	if (actionViewField == 0) {
 		browserFailed = 1;
-		copyExceptionMessage(env, "failed to find Intent.ACTION_VIEW", browserLastError, sizeof(browserLastError));
+		copyExceptionMessage(env, "failed to find Intent.ACTION_VIEW:", browserLastError, sizeof(browserLastError));
 		return;
 	}
 
 	actionViewString = (jstring)(*env)->GetStaticObjectField(env, intentClass, actionViewField);
 	if (actionViewString == NULL) {
 		browserFailed = 1;
-		copyExceptionMessage(env, "failed to read Intent.ACTION_VIEW", browserLastError, sizeof(browserLastError));
+		copyExceptionMessage(env, "failed to read Intent.ACTION_VIEW:", browserLastError, sizeof(browserLastError));
+		return;
+	}
+	actionViewString = (jstring)(*env)->NewGlobalRef(env, actionViewString);
+
+	jfieldID newTaskField = (*env)->GetStaticFieldID(env, intentClass, "FLAG_ACTIVITY_NEW_TASK", "I");
+	if (newTaskField == 0) {
+		browserFailed = 1;
+		copyExceptionMessage(env, "failed to find Intent.FLAG_ACTIVITY_NEW_TASK:", browserLastError, sizeof(browserLastError));
+		return;
+	}
+
+	newTaskFlag = (jstring)(*env)->GetStaticIntField(env, intentClass, newTaskField);
+	if (newTaskFlag == 0) {
+		browserFailed = 1;
+		copyExceptionMessage(env, "failed to read Intent.FLAG_ACTIVITY_NEW_TASK:", browserLastError, sizeof(browserLastError));
 		return;
 	}
 	actionViewString = (jstring)(*env)->NewGlobalRef(env, actionViewString);
@@ -601,7 +629,7 @@ void setupBrowser(ANativeActivity *activity) {
 	startActivityFunc = find_method(env, contextClass, "startActivity", "(Landroid/content/Intent;)V");
 	if (intentConstructor == NULL) {
 		browserFailed = 1;
-		copyExceptionMessage(env, "failed to find startActivity function", browserLastError, sizeof(browserLastError));
+		copyExceptionMessage(env, "failed to find startActivity function:", browserLastError, sizeof(browserLastError));
 		return;
 	}
 
@@ -617,19 +645,25 @@ void openUrl(const char * url) {
 
 	jstring urlstring = (*env)->NewStringUTF(env, url);
 	if (urlstring == NULL) {
-		copyExceptionMessage(env, "Failed to create jstring for url", browserLastError, sizeof(browserLastError));
+		copyExceptionMessage(env, "Failed to create jstring for url:", browserLastError, sizeof(browserLastError));
 		return;
 	}
 
 	jobject uri = (jstring)(*env)->CallStaticObjectMethod(env, uriClass, uriParseFunc, urlstring);
 	if (uri == NULL) {
-		copyExceptionMessage(env, "Uri.parse call failed", browserLastError, sizeof(browserLastError));
+		copyExceptionMessage(env, "Uri.parse call failed:", browserLastError, sizeof(browserLastError));
 		return;
 	}
 
 	jobject intent = (*env)->NewObject(env, intentClass, intentConstructor, actionViewString, uri);
 	if (intent == NULL) {
-		copyExceptionMessage(env, "Failed to create intent", browserLastError, sizeof(browserLastError));
+		copyExceptionMessage(env, "Failed to create intent:", browserLastError, sizeof(browserLastError));
+		return;
+	}
+
+	(*env)->CallObjectMethod(env, intent, addFlags, newTaskFlag);
+	if ((*env)->ExceptionOccurred(env) != NULL) {
+		copyExceptionMessage(env, "Failed to add flags:", browserLastError, sizeof(browserLastError));
 		return;
 	}
 
