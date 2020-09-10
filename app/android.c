@@ -618,13 +618,12 @@ void setupBrowser(ANativeActivity *activity) {
 		return;
 	}
 
-	newTaskFlag = (jstring)(*env)->GetStaticIntField(env, intentClass, newTaskField);
+	newTaskFlag = (jint)(*env)->GetStaticIntField(env, intentClass, newTaskField);
 	if (newTaskFlag == 0) {
 		browserFailed = 1;
 		copyExceptionMessage(env, "failed to read Intent.FLAG_ACTIVITY_NEW_TASK:", browserLastError, sizeof(browserLastError));
 		return;
 	}
-	actionViewString = (jstring)(*env)->NewGlobalRef(env, actionViewString);
 
 	startActivityFunc = find_method(env, contextClass, "startActivity", "(Landroid/content/Intent;)V");
 	if (intentConstructor == NULL) {
@@ -676,4 +675,114 @@ void openUrl(const char * url) {
 
 const char * getLastBrowserError() {
 	return browserLastError;
+}
+
+unsigned char systemUiVisibilityFailed = 0;
+unsigned char systemUiVisibilityInitCompleted = 0;
+char systemUiVisibilityLastError[512] = {0};
+
+jmethodID getWindowMethod;
+jmethodID getDecorViewMethod;
+jmethodID setSystemUiVisibilityMethod;
+jmethodID getSystemUiVisibilityMethod;
+
+void setupSystemUiVisibility(ANativeActivity *activity) {
+	JNIEnv* env = activity->env;
+
+	// If we already failed, or already have it, no need to do anything here
+	if (systemUiVisibilityFailed == 0 && systemUiVisibilityInitCompleted != 0) {
+		return;
+	}
+	if (systemUiVisibilityFailed) {
+		return;
+	}
+
+	jclass activityClass = (*env)->FindClass(env, "android/app/Activity");
+	if (activityClass == NULL) {
+		systemUiVisibilityFailed = 1;
+		copyExceptionMessage(env, "failed to find Activity class:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+
+	getWindowMethod = find_method(env, activityClass, "getWindow", "()Landroid/view/Window;");
+	if (getWindowMethod == NULL) {
+		systemUiVisibilityFailed = 1;
+		copyExceptionMessage(env, "failed to find getWindow method:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+
+	jclass windowClass = (*env)->FindClass(env, "android/view/Window");
+	if (windowClass == NULL) {
+		systemUiVisibilityFailed = 1;
+		copyExceptionMessage(env, "failed to find Window class:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+
+	getDecorViewMethod = find_method(env, windowClass, "getDecorView", "()Landroid/view/View;");
+	if (getDecorViewMethod == NULL) {
+		systemUiVisibilityFailed = 1;
+		copyExceptionMessage(env, "failed to find getDecorView method:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+
+	jclass viewClass = (*env)->FindClass(env, "android/view/View");
+	if (viewClass == NULL) {
+		systemUiVisibilityFailed = 1;
+		copyExceptionMessage(env, "failed to find View class:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+
+	setSystemUiVisibilityMethod = find_method(env, viewClass, "setSystemUiVisibility", "(I)V");
+	if (setSystemUiVisibilityMethod == NULL) {
+		systemUiVisibilityFailed = 1;
+		copyExceptionMessage(env, "failed to find setSystemUiVisibility method:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+
+	getSystemUiVisibilityMethod = find_method(env, viewClass, "getSystemUiVisibility", "()I");
+	if (getSystemUiVisibilityMethod == NULL) {
+		systemUiVisibilityFailed = 1;
+		copyExceptionMessage(env, "failed to find getSystemUiVisibilityMethod method:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+}
+
+const int SYSTEM_UI_FLAG_IMMERSIVE = 0x00000800;
+const int SYSTEM_UI_FLAG_HIDE_NAVIGATION = 0x00000002;
+const int SYSTEM_UI_FLAG_FULLSCREEN = 0x00000004;
+
+void hideNavBar(ANativeActivity *activity) {
+	if (systemUiVisibilityFailed != 0) {
+		return;
+	}
+
+	JNIEnv* env = activity->env;
+
+	jobject window = (*env)->CallObjectMethod(env, activity->clazz, getWindowMethod);
+	if (window == NULL || (*env)->ExceptionOccurred(env) != NULL) {
+		copyExceptionMessage(env, "Failed to call getWindow:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+
+	jobject view = (*env)->CallObjectMethod(env, window, getDecorViewMethod);
+	if (view == NULL || (*env)->ExceptionOccurred(env) != NULL) {
+		copyExceptionMessage(env, "Failed to call getDecorView:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+
+	jint systemUiVisibilityFlags = (*env)->CallIntMethod(env, view, getSystemUiVisibilityMethod);
+	if ((*env)->ExceptionOccurred(env) != NULL) {
+		copyExceptionMessage(env, "Failed to call getDecorView:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+
+	(*env)->CallVoidMethod(env, view, setSystemUiVisibilityMethod, systemUiVisibilityFlags | SYSTEM_UI_FLAG_IMMERSIVE | SYSTEM_UI_FLAG_HIDE_NAVIGATION | SYSTEM_UI_FLAG_FULLSCREEN);
+	if ((*env)->ExceptionOccurred(env) != NULL) {
+		copyExceptionMessage(env, "Failed to call setSystemUiVisibilityMethod:", systemUiVisibilityLastError, sizeof(systemUiVisibilityLastError));
+		return;
+	}
+}
+
+const char * getLastSystemUiVisibilityError() {
+	return systemUiVisibilityLastError;
 }
