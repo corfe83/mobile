@@ -48,6 +48,9 @@ const char * getLastClipboardError();
 void setupBrowser(ANativeActivity *activity);
 void openUrl(const char * url);
 const char * getLastBrowserError();
+void setupSystemUiVisibility(ANativeActivity *activity);
+void hideNavBar(ANativeActivity *activity);
+const char * getLastSystemUiVisibilityError();
 */
 import "C"
 import (
@@ -113,10 +116,13 @@ func callMain(mainPC uintptr) {
 func onStart(activity *C.ANativeActivity) {
 	C.setupClipboardManager(activity)
 	C.setupBrowser(activity)
+	C.setupSystemUiVisibility(activity)
+	hideNavBar(activity)
 }
 
 //export onResume
 func onResume(activity *C.ANativeActivity) {
+	hideNavBar(activity)
 }
 
 //export onSaveInstanceState
@@ -148,6 +154,9 @@ func onDestroy(activity *C.ANativeActivity) {
 
 //export onWindowFocusChanged
 func onWindowFocusChanged(activity *C.ANativeActivity, hasFocus C.int) {
+	if hasFocus != 0 {
+		hideNavBar(activity)
+	}
 }
 
 //export onNativeWindowCreated
@@ -300,6 +309,18 @@ func GetClipboardString() (string, error) {
 	}
 
 	return result, err
+}
+
+func hideNavBar(activity *C.ANativeActivity) (error) {
+	C.hideNavBar(activity)
+
+	var err error
+	errorString := C.GoString(C.getLastSystemUiVisibilityError())
+	if errorString != "" {
+		err = errors.New(errorString)
+	}
+
+	return err
 }
 
 func SetClipboardString(input string) (error) {
