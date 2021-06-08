@@ -1,4 +1,4 @@
-module golang.org/x/mobile
+module github.com/corfe83/mobile
 
 go 1.11
 
